@@ -14,7 +14,7 @@ from fastapi import APIRouter
 
 router = APIRouter()
 
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 
 # Kept in one place: the desktop half embeds exactly these dictionaries.
 LANGUAGES = {

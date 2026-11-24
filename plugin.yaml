@@ -1,5 +1,5 @@
 name: spellcheck-plus
-version: 0.2.0
+version: 0.2.1
 description: >-
   Russian and English replacement suggestions for misspelled words in the Hermes Desktop
   composer's right-click menu, with per-language switches. Fills the gap left by the

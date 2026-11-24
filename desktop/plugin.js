@@ -16,7 +16,7 @@ import { useCallback, useState } from 'react'
 import { jsx, jsxs } from 'react/jsx-runtime'
 
 const ID = 'spellcheck-plus'
-const VERSION = '0.2.0'
+const VERSION = '0.2.1'
 const STORE_KEY = 'settings'
 const DEFAULT_SETTINGS = { languages: ['ru', 'en'] }
 
@@ -269,6 +269,19 @@ function suggestFor(lang, raw, limit = 4) {
   return out
 }
 
+/** Есть ли слово в каком-нибудь из включённых словарей. */
+function knownWord(raw) {
+  for (const lang of settings.languages) {
+    const spec = LANGUAGES[lang]
+    if (!spec || !spec.script.test(raw)) continue
+
+    const index = indexFor(lang)
+    if (index && index.map.has(normalize(raw))) return true
+  }
+
+  return false
+}
+
 /** Варианты для слова: пусто, если слово из словаря или письменность чужая. */
 function suggestionsFor(raw) {
   const word = raw.trim()
@@ -282,10 +295,19 @@ function suggestionsFor(raw) {
     if (cache.has(key)) return cache.get(key)
 
     const index = indexFor(lang)
-    const list = !index || index.map.has(normalize(word)) ? [] : suggestFor(lang, word)
 
-    if (cache.size > CACHE_LIMIT) cache.clear()
-    cache.set(key, list)
+    // индекс ещё не готов (плагин только что загрузился) — не кешируем «пусто»,
+    // иначе слово навсегда останется без подсказок
+    if (!index) return []
+
+    const normalizedWord = normalize(word)
+    const list = index.map.has(normalizedWord) ? [] : suggestFor(lang, word)
+
+    if (list.length) {
+      if (cache.size > CACHE_LIMIT) cache.clear()
+      cache.set(key, list)
+    }
+
     return list
   }
 
@@ -350,59 +372,66 @@ const LOCALES = {
     header: 'Did you mean:',
     addToDict: 'Add to dictionary',
     hint: 'Tick the languages you write in. Suggestions appear in the composer’s right-click menu; unticked languages are not loaded at all.',
-    settingsTitle: 'Spellcheck Plus'
+    pluginName: 'Spellcheck Plus'
   },
   ru: {
     header: 'Возможно, вы имели в виду:',
     addToDict: 'Добавить в словарь',
     hint: 'Отметьте языки, на которых пишете. Варианты появляются в меню правого клика по полю ввода; выключенные языки вообще не загружаются.',
-    settingsTitle: 'Spellcheck Plus'
+    pluginName: 'Проверка орфографии'
   },
   zh: {
     header: '您是不是要输入：',
     addToDict: '添加到词典',
     hint: '选择您使用的语言。替换建议会出现在输入框右键菜单中；未选中的语言不会被加载。',
-    settingsTitle: 'Spellcheck Plus'
+    pluginName: '拼写检查 Plus'
   },
   'zh-hant': {
     header: '您是不是要輸入：',
     addToDict: '加入字典',
     hint: '選擇您使用的語言。取代建議會出現在輸入框右鍵選單中；未勾選的語言不會載入。',
-    settingsTitle: 'Spellcheck Plus'
+    pluginName: '拼字檢查 Plus'
   },
   ja: {
     header: 'もしかして：',
     addToDict: '辞書に追加',
     hint: '使用する言語にチェックを入れてください。入力欄の右クリックメニューに候補が表示されます。',
-    settingsTitle: 'Spellcheck Plus'
+    pluginName: 'スペルチェック Plus'
   },
   ar: {
     header: 'هل تقصد:',
     addToDict: 'إضافة إلى القاموس',
     hint: 'حدّد اللغات التي تكتب بها. تظهر البدائل في قائمة زر الفأرة الأيمن، واللغات غير المحددة لا تُحمَّل.',
-    settingsTitle: 'Spellcheck Plus'
+    pluginName: 'التدقيق الإملائي'
   },
   fr: {
     header: 'Vouliez-vous dire :',
     addToDict: 'Ajouter au dictionnaire',
     hint: 'Cochez les langues que vous utilisez. Les suggestions apparaissent dans le menu contextuel du champ de saisie.',
-    settingsTitle: 'Spellcheck Plus'
+    pluginName: 'Vérification orthographique'
   },
   de: {
     header: 'Meinten Sie:',
     addToDict: 'Zum Wörterbuch hinzufügen',
     hint: 'Wählen Sie Ihre Sprachen. Vorschläge erscheinen im Kontextmenü des Eingabefelds; abgewählte Sprachen werden nicht geladen.',
-    settingsTitle: 'Spellcheck Plus'
+    pluginName: 'Rechtschreibprüfung'
   },
   es: {
     header: '¿Quisiste decir:',
     addToDict: 'Añadir al diccionario',
     hint: 'Marca los idiomas en los que escribes. Las sugerencias aparecen en el menú del campo de entrada.',
-    settingsTitle: 'Spellcheck Plus'
+    pluginName: 'Corrector ortográfico'
   }
 }
 
 /* ───────────────────────────── регистрация ────────────────────────────── */
+
+// Словари языков по умолчанию готовим ДО регистрации плагина: иначе первый
+// правый клик сразу после (пере)загрузки плагина попадает в момент, когда
+// индекс ещё не построен, и меню остаётся пустым. Остальные языки
+// распаковываются в фоне после включения в настройках.
+await Promise.all([...new Set(DEFAULT_SETTINGS.languages)].map(lang => loadDictionary(lang)))
+for (const lang of DEFAULT_SETTINGS.languages) indexFor(lang)
 
 export default {
   id: ID,
@@ -427,10 +456,26 @@ export default {
           const raw = (word || '').trim()
           if (!raw) return []
 
-          const list = suggestionsFor(raw)
-          if (!list.length) return []
-
           const t = ctx.i18n.t
+          const list = suggestionsFor(raw)
+
+          if (!list.length) {
+            // Вариантов нет: слово либо из словаря (тогда меню молчит),
+            // либо незнакомое (бренд, термин, имя) — тогда предлагаем хотя бы
+            // занести его в словарь, чтобы строка не пропадала.
+            return knownWord(raw)
+              ? []
+              : [
+                  {
+                    label: t('addToDict'),
+                    onSelect: () => {
+                      cache.clear()
+                      void host.spellcheck?.addWord?.(raw)
+                    }
+                  }
+                ]
+          }
+
           return [
             { disabled: true, label: t('header'), onSelect: () => {} },
             ...list.map(s => ({ label: s, onSelect: action => action.replaceWord(s) })),
@@ -448,7 +493,7 @@ export default {
 
     ctx.registerSettingsPage?.({
       id: 'settings',
-      title: ctx.i18n.t('settingsTitle'),
+      title: ctx.i18n.t('pluginName'),
       icon: 'check',
       render: () => jsx(SettingsPage, {})
     })

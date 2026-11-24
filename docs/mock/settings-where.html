@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Где найти настройки — мок</title>
+<style>
+  :root{
+    --bg:#15151a; --panel:#1c1c22; --rail:#1a1a20; --card:#26262d; --fg:#e8e8ee;
+    --muted:#8f8f9e; --stroke:#2f2f3a; --accent:#e0b341;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:13.5px/1.45 "Segoe UI",system-ui,sans-serif}
+  .app{display:flex;height:100%}
+  .rail{width:236px;flex:0 0 auto;background:var(--rail);border-right:1px solid var(--stroke);padding:14px 10px;display:flex;flex-direction:column;gap:2px}
+  .rail .title{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:6px 10px 8px}
+  .item{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:8px;color:var(--fg);font-size:13px}
+  .item .dot{width:15px;text-align:center;color:var(--muted)}
+  .item.active{background:rgba(224,179,65,.14);outline:1px solid rgba(224,179,65,.35)}
+  .item.sub{padding-left:26px;color:var(--muted)}
+  .item.sub.active{color:var(--fg)}
+  .body{flex:1;padding:22px 26px;min-width:0}
+  .crumbs{color:var(--muted);font-size:12.5px;margin-bottom:6px}
+  .crumbs b{color:var(--fg);font-weight:600}
+  .lead{color:var(--muted);font-size:12.5px;margin:14px 0 12px;max-width:640px}
+  .list{border:1px solid var(--stroke);border-radius:10px;overflow:hidden;max-width:640px}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;background:var(--card);border-top:1px solid var(--stroke)}
+  .row:first-child{border-top:0}
+  .row .name{display:flex;align-items:center;gap:10px}
+  .row .chev{color:var(--muted)}
+  .page{margin-top:18px;border:1px solid var(--stroke);border-radius:10px;background:var(--card);max-width:640px;padding:14px 16px}
+  .page h3{margin:0 0 6px;font-size:13.5px}
+  .page p{margin:0 0 10px;color:var(--muted);font-size:12px}
+  .toggle{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-top:1px solid var(--stroke);font-size:13px}
+  .sw{width:36px;height:19px;border-radius:999px;background:var(--accent);position:relative;flex:0 0 auto}
+  .sw i{position:absolute;top:2px;left:19px;width:15px;height:15px;border-radius:50%;background:#fff;display:block}
+  .sw.off{background:#4a4a57}
+  .sw.off i{left:2px}
+  .arrow{position:relative;margin:14px 0 0;color:var(--accent);font-size:12px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="rail">
+    <div class="title">Настройки</div>
+    <div class="item"><span class="dot">◇</span> Модель <span style="margin-left:auto;color:var(--muted)">›</span></div>
+    <div class="item"><span class="dot">◌</span> Чат <span style="margin-left:auto;color:var(--muted)">›</span></div>
+    <div class="item"><span class="dot">◑</span> Внешний вид <span style="margin-left:auto;color:var(--muted)">›</span></div>
+    <div class="item"><span class="dot">▣</span> Рабочее пространство <span style="margin-left:auto;color:var(--muted)">›</span></div>
+    <div class="item"><span class="dot">⚿</span> Безопасность <span style="margin-left:auto;color:var(--muted)">›</span></div>
+    <div class="item"><span class="dot">◍</span> Провайдеры <span style="margin-left:auto;color:var(--muted)">›</span></div>
+    <div class="item"><span class="dot">⌗</span> Шлюзы <span style="margin-left:auto;color:var(--muted)">›</span></div>
+    <div class="item active"><span class="dot">▦</span> Плагины <span style="margin-left:auto;color:var(--muted)">›</span></div>
+    <div class="item sub active">✓ Проверка орфографии</div>
+    <div class="item sub">◍ фоновые обои</div>
+    <div class="item"><span class="dot">ⓘ</span> О программе <span style="margin-left:auto;color:var(--muted)">›</span></div>
+  </div>
+
+  <div class="body">
+    <div class="crumbs">Настройки › <b>Плагины</b></div>
+    <div class="lead">Параметры, которые добавляют установленные плагины. У каждого плагина своя страница.</div>
+
+    <div class="list">
+      <div class="row">
+        <span class="name">✓ <b>Проверка орфографии</b></span>
+        <span class="chev">›</span>
+      </div>
+      <div class="row">
+        <span class="name">◍ фоновые обои</span>
+        <span class="chev">›</span>
+      </div>
+    </div>
+
+    <div class="page">
+      <h3>Проверка орфографии</h3>
+      <p>Отметьте языки, на которых пишете. Варианты появляются в меню правого клика по полю ввода; выключенные языки вообще не загружаются.</p>
+      <div class="toggle"><span>Русский</span><span class="sw"><i></i></span></div>
+      <div class="toggle"><span>English</span><span class="sw"><i></i></span></div>
+      <div class="toggle"><span>Українська</span><span class="sw off"><i></i></span></div>
+      <div class="toggle"><span>Deutsch</span><span class="sw off"><i></i></span></div>
+      <div class="toggle"><span>Français</span><span class="sw off"><i></i></span></div>
+      <div class="toggle"><span>Español</span><span class="sw off"><i></i></span></div>
+      <div class="toggle"><span>Italiano</span><span class="sw off"><i></i></span></div>
+      <div class="toggle"><span>Português</span><span class="sw off"><i></i></span></div>
+      <div class="toggle"><span>Polski</span><span class="sw off"><i></i></span></div>
+      <div class="toggle"><span>Türkçe</span><span class="sw off"><i></i></span></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

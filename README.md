@@ -50,7 +50,9 @@ node patches/apply-fix.cjs      # идемпотентно, кладёт .bak р
 
 ## Языки в настройках
 
-Настройки ▸ Плагины ▸ **Spellcheck Plus** — список языков с переключателями: Русский, English, Українська, Deutsch, Français, Español, Italiano, Português, Polski, Türkçe. По умолчанию включены русский и английский; выбор хранится в профиле плагина (`ctx.storage`), применяется сразу, выключенный язык не распаковывается в память.
+Настройки ▸ Плагины ▸ **Проверка орфографии** (название берётся из языка интерфейса: в английском UI это Spellcheck Plus, в немецком Rechtschreibprüfung и т. д.) — список языков с переключателями: Русский, English, Українська, Deutsch, Français, Español, Italiano, Português, Polski, Türkçe. По умолчанию включены русский и английский; выбор хранится в профиле плагина (`ctx.storage`), применяется сразу, выключенный язык не распаковывается в память.
+
+![Где найти настройки](docs/screenshots/where-to-find.png)
 
 Добавить новый язык = добавить частотный список в `tools/build-dictionaries.mjs` (одна строка в `LANGS`: подпись, алфавит, набор письма, файл, лимит) и пересобрать `plugin.js`.
 
@@ -90,6 +92,8 @@ Russian and English replacement suggestions for misspelled words in the Hermes D
 **How.** Frequency word lists from [FrequencyWords](https://github.com/hermitdave/FrequencyWords) (MIT): ru 200k forms, plus en, uk, de, fr, es, it, pt, pl, tr (~45–50k each), gzip+base64 inside `plugin.js`. Damerau distance ≤ 1 candidates everywhere, distance ≤ 2 only as a fallback, capped at 45 ms / 30,000 candidates (worst measured: 17 ms). Languages are toggled in Settings ▸ Plugins; a disabled language is never decompressed.
 
 **Install.** Copy `desktop/plugin.js` into `~/.hermes/desktop-plugins/spellcheck-plus/` (`%LOCALAPPDATA%\hermes\desktop-plugins\spellcheck-plus` on Windows). Hot-reloads in seconds.
+
+**Settings.** Settings ▸ Plugins ▸ *Spellcheck Plus* (the entry is named in the UI language: «Проверка орфографии» in Russian, Rechtschreibprüfung in German, …), with one switch per bundled language. See `docs/screenshots/where-to-find.png`.
 
 **Underlines** come from Chromium and need the app-side `spellcheck` flag; `patches/apply-fix.cjs` sets it (idempotent, reverts on app updates — rerun).
 

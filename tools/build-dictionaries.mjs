@@ -16,7 +16,7 @@ const ROOT = path.resolve(import.meta.dirname, '..')
 const DATA = path.join(ROOT, 'data')
 const TEMPLATE = path.join(ROOT, 'tools', 'plugin.template.js')
 const OUT = path.join(ROOT, 'desktop', 'plugin.js')
-const VERSION = '0.2.0'
+const VERSION = '0.2.1'
 
 const BASE = 'https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018'
 

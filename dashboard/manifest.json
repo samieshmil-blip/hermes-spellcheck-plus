@@ -3,7 +3,7 @@
   "label": "Spellcheck Plus",
   "description": "Russian and English replacement suggestions in the composer's right-click menu.",
   "icon": "Check",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "api": "plugin_api.py",
   "tab": {
     "hidden": true

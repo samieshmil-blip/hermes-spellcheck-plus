@@ -6,7 +6,7 @@ exists because every Hermes plugin package needs a ``register`` entry point even
 when it registers nothing on the agent side.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 
 def register(ctx):  # noqa: ARG001 - the plugin host passes its context
