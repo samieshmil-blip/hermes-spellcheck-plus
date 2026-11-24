@@ -1,0 +1,13 @@
+name: spellcheck-plus
+version: 0.1.0
+description: >-
+  Russian and English replacement suggestions for misspelled words in the Hermes Desktop
+  composer's right-click menu, with per-language switches. Fills the gap left by the
+  app-owned context menu, which never receives Chromium's spell-check suggestions.
+author: samieshmil
+requires_hermes: ">=0.9.0"
+tags:
+  - desktop
+  - spelling
+  - russian
+  - english

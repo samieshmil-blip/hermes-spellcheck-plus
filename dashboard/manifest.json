@@ -1,0 +1,9 @@
+{
+  "name": "spellcheck-plus",
+  "label": "Spellcheck Plus",
+  "description": "Russian and English replacement suggestions in the composer's right-click menu.",
+  "icon": "Check",
+  "version": "0.1.0",
+  "api": "plugin_api.py",
+  "tab": { "hidden": true }
+}

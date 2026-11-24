@@ -1,0 +1,94 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Spellcheck Plus — mock</title>
+<style>
+  :root{
+    --bg:#1b1b20; --card:#26262d; --card-2:#2e2e37; --fg:#e8e8ee; --muted:#9a9aa8;
+    --stroke:#3a3a45; --accent:#7c6cf0; --danger:#e05252;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;width:540px;background:var(--bg);color:var(--fg);
+    font:14px/1.45 "Segoe UI",system-ui,sans-serif;overflow:hidden}
+  .wrap{padding:24px 26px}
+  .label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+  .composer{width:470px;background:var(--card);border:1px solid var(--stroke);border-radius:12px;
+    padding:14px 16px;font-size:16px;position:relative;min-height:56px}
+  .wavy{text-decoration:underline wavy var(--danger);text-underline-offset:4px}
+  .menu{position:static;margin-top:14px;width:250px;background:var(--card-2);
+    border:1px solid var(--stroke);border-radius:10px;padding:6px;box-shadow:0 18px 44px rgba(0,0,0,.5);z-index:2}
+  .row{padding:7px 10px;border-radius:7px;font-size:13.5px}
+  .row.hover{background:rgba(124,108,240,.24)}
+  .row.disabled{color:var(--muted);font-size:11.5px;padding-bottom:2px}
+  .sep{height:1px;background:var(--stroke);margin:5px 6px}
+  .hint{color:var(--muted);font-size:12px;margin-top:14px}
+  .card{background:var(--card);border:1px solid var(--stroke);border-radius:12px;padding:16px 18px;width:470px}
+  .card h2{margin:0 0 4px;font-size:14px}
+  .card p{margin:0 0 12px;color:var(--muted);font-size:12px}
+  .toggle{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-top:1px solid var(--stroke);font-size:13px}
+  .sw{width:38px;height:20px;border-radius:999px;background:var(--accent);position:relative;flex:0 0 auto}
+  .sw i{position:absolute;top:2px;left:20px;width:16px;height:16px;border-radius:50%;background:#fff;display:block}
+</style>
+</head>
+<body>
+<div class="wrap"><div id="root"></div></div>
+<script>
+const STR = {
+  ru: {
+    label: 'Поле ввода · правый клик по слову с ошибкой',
+    text: 'проверка <span class="wavy">превет</span> и <span class="wavy">опчатка</span> в поле ввода',
+    header: 'Возможно, вы имели в виду:',
+    add: 'Добавить в словарь',
+    verbs: ['Вырезать', 'Копировать', 'Вставить', 'Выделить всё'],
+    hint: 'Варианты считаются по частотному словарю — меню открывается без задержки.',
+    settingsHint: 'Языки, для которых в меню правого клика по полю ввода показываются варианты замены.',
+    sugg: ['привет', 'превед']
+  },
+  en: {
+    label: 'Composer · right-click on a misspelled word',
+    text: 'checking <span class="wavy">recieve</span> and <span class="wavy">speling</span> in the composer',
+    header: 'Did you mean:',
+    add: 'Add to dictionary',
+    verbs: ['Cut', 'Copy', 'Paste', 'Select all'],
+    hint: 'Suggestions come from a frequency dictionary — the menu opens with no delay.',
+    settingsHint: 'Languages that get replacement suggestions in the composer’s right-click menu.',
+    sugg: ['receive', 'spelling']
+  },
+  de: {
+    label: 'Eingabefeld · Rechtsklick auf ein falsch geschriebenes Wort',
+    text: 'Prüfung von <span class="wavy">empfangn</span> und <span class="wavy">schreibn</span> im Feld',
+    header: 'Meinten Sie:',
+    add: 'Zum Wörterbuch hinzufügen',
+    verbs: ['Ausschneiden', 'Kopieren', 'Einfügen', 'Alles auswählen'],
+    hint: 'Vorschläge kommen aus einem Häufigkeitswörterbuch — das Menü öffnet ohne Verzögerung.',
+    settingsHint: 'Sprachen, für die das Kontextmenü des Eingabefelds Ersetzungen vorschlägt.',
+    sugg: ['empfangen', 'schreiben']
+  }
+}
+const q = new URLSearchParams(location.search)
+const t = STR[q.get('lang') || 'ru']
+const view = q.get('view') || 'menu'
+
+document.getElementById('root').innerHTML = view === 'settings'
+  ? `<div class="card">
+       <h2>Spellcheck Plus</h2>
+       <p>${t.settingsHint}</p>
+       <div class="toggle"><span>Русский</span><span class="sw"><i></i></span></div>
+       <div class="toggle"><span>English</span><span class="sw"><i></i></span></div>
+     </div>`
+  : `<div class="label">${t.label}</div>
+     <div class="composer">
+       <div>${t.text}</div>
+       <div class="menu">
+         <div class="row disabled">${t.header}</div>
+         ${t.sugg.map((s, i) => `<div class="row${i === 0 ? ' hover' : ''}">${s}</div>`).join('')}
+         <div class="row">${t.add}</div>
+         <div class="sep"></div>
+         ${t.verbs.map(v => `<div class="row">${v}</div>`).join('')}
+       </div>
+     </div>
+     `
+</script>
+</body>
+</html>
