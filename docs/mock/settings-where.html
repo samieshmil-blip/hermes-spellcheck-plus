@@ -15,6 +15,8 @@
   .rail .title{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:6px 10px 8px}
   .item{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:8px;color:var(--fg);font-size:13px}
   .item .dot{width:15px;text-align:center;color:var(--muted)}
+  .ic{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;color:var(--accent);flex:0 0 auto}
+  .ic svg{display:block}
   .item.active{background:rgba(224,179,65,.14);outline:1px solid rgba(224,179,65,.35)}
   .item.sub{padding-left:26px;color:var(--muted)}
   .item.sub.active{color:var(--fg)}
@@ -50,8 +52,8 @@
     <div class="item"><span class="dot">◍</span> Провайдеры <span style="margin-left:auto;color:var(--muted)">›</span></div>
     <div class="item"><span class="dot">⌗</span> Шлюзы <span style="margin-left:auto;color:var(--muted)">›</span></div>
     <div class="item active"><span class="dot">▦</span> Плагины <span style="margin-left:auto;color:var(--muted)">›</span></div>
-    <div class="item sub active">✓ Проверка орфографии</div>
-    <div class="item sub">◍ фоновые обои</div>
+    <div class="item sub active"><span class="ic">✓</span> Проверка орфографии</div>
+    <div class="item sub"><span class="ic"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="8" cy="8" r="6.2" fill="none" stroke="#9a9aa8" stroke-width="1.2"/><path d="M8 1.8a6.2 6.2 0 0 1 0 12.4z" fill="#e0b341"/><path d="M8 1.8a6.2 6.2 0 0 0-4.4 10.6L8 8z" fill="#7c6cf0" opacity=".85"/></svg></span> Фон чатов</div>
     <div class="item"><span class="dot">ⓘ</span> О программе <span style="margin-left:auto;color:var(--muted)">›</span></div>
   </div>
 
@@ -61,11 +63,11 @@
 
     <div class="list">
       <div class="row">
-        <span class="name">✓ <b>Проверка орфографии</b></span>
+        <span class="name"><span class="ic">✓</span> <b>Проверка орфографии</b></span>
         <span class="chev">›</span>
       </div>
       <div class="row">
-        <span class="name">◍ фоновые обои</span>
+        <span class="name"><span class="ic"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="8" cy="8" r="6.2" fill="none" stroke="#9a9aa8" stroke-width="1.2"/><path d="M8 1.8a6.2 6.2 0 0 1 0 12.4z" fill="#e0b341"/><path d="M8 1.8a6.2 6.2 0 0 0-4.4 10.6L8 8z" fill="#7c6cf0" opacity=".85"/></svg></span> Фон чатов</span>
         <span class="chev">›</span>
       </div>
     </div>
