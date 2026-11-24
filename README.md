@@ -1,6 +1,6 @@
 # Spellcheck Plus для Hermes Desktop
 
-Русские и английские варианты замены для слов с опечатками в поле ввода Hermes: **правый клик по слову → «Возможно, вы имели в виду: …» → один клик заменяет слово**. Языки включаются и выключаются в Настройки ▸ Плагины.
+Русские, английские (и ещё восемь) варианты замены для слов с опечатками в поле ввода Hermes: **правый клик по слову → «Возможно, вы имели в виду: …» → один клик заменяет слово**. Языки включаются и выключаются в Настройки ▸ Плагины, выключенные даже не распаковываются.
 
 [English version below](#english)
 
@@ -20,10 +20,10 @@ Hermes рисует меню правого клика сам (свой React-м
 
 ## Что внутри
 
-- Словари — частотные списки русского (200 000 словоформ) и английского (46 691 слово) языков из [FrequencyWords](https://github.com/hermitdave/FrequencyWords) (2018), лицензия MIT.
-- Словари упакованы в `plugin.js` через gzip + base64: сам файл ~1.6 МБ, распаковка ~60 мс при старте, индекс ~200 мс — в фоне, меню не ждёт.
-- Поиск вариантов: расстояние Дамерау ≤ 1 (перестановки, замены, вставки, удаления) для всех слов, ≤ 2 — только если первой правки не хватило и слово не короче 5 букв, с жёстким бюджетом 40 мс / 20 000 кандидатов. Худший замер — 16 мс.
-- Защита от ложных срабатываний: если слово похоже на словоформу известного (`орфографи-я` → есть `орфографии`), подсказки не показываются.
+- Словари — частотные списки из [FrequencyWords](https://github.com/hermitdave/FrequencyWords) (MIT, 2018): русский 200 000 словоформ, украинский 44 303, английский 46 691, немецкий 49 305, французский 46 687, испанский 49 520, итальянский 45 114, португальский 43 952, польский 49 635, турецкий 48 515.
+- Словари упакованы в `plugin.js` через gzip + base64: файл ~3.6 МБ на десять языков, распаковка ~60 мс на язык при старте, индекс ~150 мс — в фоне, меню не ждёт.
+- Поиск вариантов: расстояние Дамерау ≤ 1 для всех слов; ≤ 2 — только если первой правки не хватило, с жёстким бюджетом 45 мс / 30 000 кандидатов. Худший замер — 17 мс.
+- Защита от ложных срабатываний: вторая правка не применяется, если слово похоже на словоформу известного (`орфографи-я` → есть `орфографии`).
 - «Добавить в словарь» кладёт слово в словарь Chromium — подчёркивание снимается сразу.
 
 ## Установка
@@ -48,9 +48,11 @@ node patches/apply-fix.cjs      # идемпотентно, кладёт .bak р
 
 Скрипт правит `dist/electron-main.mjs` (языки словаря `ru` + `en-US`) и `dist/assets/main-*.js` (`spellCheck: true` для поля ввода), после чего Chromium подчёркивает опечатки. Обновление приложения перезаписывает файлы — скрипт запускается повторно (или кладётся в автозагрузку).
 
-## Настройки
+## Языки в настройках
 
-Настройки ▸ Плагины ▸ **Spellcheck Plus** — два переключателя: Русский, English. Выбор хранится в профиле плагина (`ctx.storage`), применяется сразу.
+Настройки ▸ Плагины ▸ **Spellcheck Plus** — список языков с переключателями: Русский, English, Українська, Deutsch, Français, Español, Italiano, Português, Polski, Türkçe. По умолчанию включены русский и английский; выбор хранится в профиле плагина (`ctx.storage`), применяется сразу, выключенный язык не распаковывается в память.
+
+Добавить новый язык = добавить частотный список в `tools/build-dictionaries.mjs` (одна строка в `LANGS`: подпись, алфавит, набор письма, файл, лимит) и пересобрать `plugin.js`.
 
 Интерфейс переведён на все локали приложения: `en, ru, zh, zh-hant, ja, ar, fr, de, es`.
 
@@ -85,7 +87,7 @@ Russian and English replacement suggestions for misspelled words in the Hermes D
 
 **Why.** Hermes renders its own context menu and never gives the app Chromium's spell-check payload (`context-menu` params). The red underline shows up, the suggestion list does not. This plugin fills that gap through the supported plugin SDK slot `COMPOSER_AREAS.contextMenu` — no DOM reach-in, no core patches.
 
-**How.** Frequency word lists (RU 200k forms, EN 46,691 words) from [FrequencyWords](https://github.com/hermitdave/FrequencyWords) (MIT), gzip+base64 inside `plugin.js`. Damerau distance ≤ 1 candidates everywhere, distance ≤ 2 only as a fallback for words of 5+ letters, capped at 40 ms / 20,000 candidates (worst measured: 16 ms). A morphology guard suppresses suggestions for words that look like a form of a known word.
+**How.** Frequency word lists from [FrequencyWords](https://github.com/hermitdave/FrequencyWords) (MIT): ru 200k forms, plus en, uk, de, fr, es, it, pt, pl, tr (~45–50k each), gzip+base64 inside `plugin.js`. Damerau distance ≤ 1 candidates everywhere, distance ≤ 2 only as a fallback, capped at 45 ms / 30,000 candidates (worst measured: 17 ms). Languages are toggled in Settings ▸ Plugins; a disabled language is never decompressed.
 
 **Install.** Copy `desktop/plugin.js` into `~/.hermes/desktop-plugins/spellcheck-plus/` (`%LOCALAPPDATA%\hermes\desktop-plugins\spellcheck-plus` on Windows). Hot-reloads in seconds.
 

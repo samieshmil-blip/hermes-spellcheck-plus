@@ -1,14 +1,14 @@
 /**
- * spellcheck-plus — варианты замены для слов с ошибками в поле ввода Hermes.
+ * Spellcheck Plus — варианты замены для слов с ошибками в поле ввода Hermes.
  *
- * Зачем: Hermes рисует меню правого клика сам и не пускает системное меню
- * Chromium. Из-за этого слово с опечаткой (и его подсказки) до меню не доезжает:
- * красное подчёркивание видно, а списка вариантов нет. Плагин считает варианты
- * на месте, по частотным словарям, и добавляет их в меню через штатный слот
- * `COMPOSER_AREAS.contextMenu` — без обращений к DOM приложения.
+ * Зачем: Hermes рисует меню правого клика сам и не отдаёт в него данные
+ * проверки орфографии Chromium. Красное подчёркивание видно, списка вариантов
+ * нет. Плагин считает варианты на месте по частотным словарям и добавляет их
+ * в меню через штатный слот `COMPOSER_AREAS.contextMenu` — без обращений к DOM
+ * приложения и без патчей ядра.
  *
- * Языки: русский и английский, каждый можно выключить в Настройки ▸ Плагины.
- * Словари встроены в файл (частотные списки, __RU_COUNT__ и __EN_COUNT__ слов).
+ * Языки: __LANGUAGES_LIST__ — каждый включается и выключается в Настройки ▸ Плагины.
+ * Словари встроены в файл сжатыми (gzip + base64).
  */
 
 import { COMPOSER_AREAS, ToggleRow, host, usePluginI18n } from '@hermes/plugin-sdk'
@@ -16,50 +16,39 @@ import { useCallback, useState } from 'react'
 import { jsx, jsxs } from 'react/jsx-runtime'
 
 const ID = 'spellcheck-plus'
+const VERSION = '__VERSION__'
 const STORE_KEY = 'settings'
 const DEFAULT_SETTINGS = { languages: ['ru', 'en'] }
 
 // Потолки, чтобы меню открывалось мгновенно даже на промахе.
-const HOT_RANK = Infinity // вариант из словаря — годится (список уже частотный)
-const DIST2_RANK = 60000 // для второй правки — только частые слова
-const DIST2_BUDGET_MS = 40
-const DIST2_MAX_CANDIDATES = 20000
+const DIST2_RANK = 120000 // вторая правка: только не самые редкие слова
+const DIST2_BUDGET_MS = 45
+const DIST2_MAX_CANDIDATES = 30000
 const CACHE_LIMIT = 500
 
-// Словари лежат в файле сжатыми (gzip + base64): сам плагин остаётся одним
-// небольшим файлом, а в исходниках нет трёх мегабайт текста.
-const RU_DATA = '__RU_B64__'
-const EN_DATA = '__EN_B64__'
+/** Словари: язык → gzip+base64 частотного списка (по убыванию частоты). */
+const DICTIONARY_DATA = {
+__DICTIONARIES__
+}
 
+/** Языки, которые умеет плагин: подпись, алфавит для правок, набор письма. */
 const LANGUAGES = {
-  ru: {
-    label: 'Русский',
-    data: RU_DATA,
-    alphabet: 'абвгдеёжзийклмнопрстуфхцчшщъыьэюя',
-    script: /^[\u0400-\u04FF-]+$/
-  },
-  en: {
-    label: 'English',
-    data: EN_DATA,
-    alphabet: 'abcdefghijklmnopqrstuvwxyz',
-    script: /^[A-Za-z'-]+$/
-  }
+__LANGUAGES__
 }
 
 /** Расшифрованный текст словаря по языку ('' пока не распаковано). */
 const dictionaries = new Map()
 
-/** ё и е — одна буква для поиска, но в подсказке показываем оригинал. */
+/** ё и е для русского — одна буква при поиске, но в подсказке показываем оригинал. */
 const normalize = word => word.toLowerCase().replace(/ё/g, 'е')
 
 let ctxRef = null
 let settings = { ...DEFAULT_SETTINGS }
-const indexes = new Map() // lang → Map<normalized, { display, rank }>
+const indexes = new Map() // язык → { map, sorted }
 const cache = new Map() // `${lang}:${word}` → string[]
 
 /* ─────────────────────────────── словари ──────────────────────────────── */
 
-/** gzip + base64 → текст. Распаковка идёт один раз при старте плагина. */
 async function decodeDictionary(payload) {
   const binary = atob(payload)
   const bytes = new Uint8Array(binary.length)
@@ -72,11 +61,11 @@ async function decodeDictionary(payload) {
 async function loadDictionary(lang) {
   if (dictionaries.has(lang)) return dictionaries.get(lang)
 
-  const spec = LANGUAGES[lang]
-  if (!spec) return ''
+  const payload = DICTIONARY_DATA[lang]
+  if (!payload) return ''
 
   try {
-    const text = await decodeDictionary(spec.data)
+    const text = await decodeDictionary(payload)
     dictionaries.set(lang, text)
     return text
   } catch {
@@ -89,9 +78,8 @@ function indexFor(lang) {
   const ready = indexes.get(lang)
   if (ready) return ready
 
-  const spec = LANGUAGES[lang]
   const text = dictionaries.get(lang)
-  if (!spec || !text) return null
+  if (!text || !LANGUAGES[lang]) return null
 
   const map = new Map()
   const words = text.split(' ')
@@ -101,8 +89,7 @@ function indexFor(lang) {
     if (!map.has(key)) map.set(key, { display, rank })
   }
 
-  const sorted = [...map.keys()].sort()
-  const index = { map, sorted }
+  const index = { map, sorted: [...map.keys()].sort() }
   indexes.set(lang, index)
   return index
 }
@@ -122,7 +109,19 @@ function hasPrefix(index, stem) {
   return lo < keys.length && keys[lo].startsWith(stem)
 }
 
-/** Готовит словари включённых языков (вызывается из register, не блокирует UI). */
+/** Похоже на словоформу известного слова (орфографи-я → орфографии)? */
+function looksLikeForm(index, word) {
+  if (!index) return false
+  const longest = Math.min(2, word.length - 6)
+
+  for (let cut = 1; cut <= longest; cut++) {
+    const stem = word.slice(0, word.length - cut)
+    if (stem.length >= 6 && hasPrefix(index, stem)) return true
+  }
+
+  return false
+}
+
 async function buildEnabled() {
   for (const lang of settings.languages) {
     if (!dictionaries.has(lang)) await loadDictionary(lang)
@@ -147,40 +146,52 @@ function editsOne(word, alphabet) {
   return out
 }
 
+function collectHits(index, word, alphabet, limit) {
+  const hits = []
+
+  for (const candidate of editsOne(word, alphabet)) {
+    const hit = index.map.get(candidate)
+    if (hit) hits.push(hit)
+    if (hits.length >= limit) break
+  }
+
+  return hits
+}
+
+function collectSecondPass(index, word, alphabet) {
+  const hits = []
+  const deadline = performance.now() + DIST2_BUDGET_MS
+  let examined = 0
+
+  for (const first of editsOne(word, alphabet)) {
+    for (const candidate of editsOne(first, alphabet)) {
+      const hit = index.map.get(candidate)
+      if (hit && hit.rank < DIST2_RANK) hits.push(hit)
+      if (hits.length >= 16) return hits
+
+      examined++
+      if (examined > DIST2_MAX_CANDIDATES) return hits
+      if ((examined & 2047) === 0 && performance.now() > deadline) return hits
+    }
+  }
+
+  return hits
+}
+
 function suggestFor(lang, raw, limit = 4) {
   const spec = LANGUAGES[lang]
   const index = indexFor(lang)
   if (!spec || !index) return []
 
   const word = normalize(raw)
-  const hits = []
 
-  for (const candidate of editsOne(word, spec.alphabet)) {
-    const hit = index.map.get(candidate)
-    if (hit && hit.rank < HOT_RANK) hits.push(hit)
-  }
+  // одна правка — доверяем: настоящая опечатка почти всегда здесь
+  const hits = collectHits(index, word, spec.alphabet, 16)
 
-  // вторая правка — только если первой не хватило и слово не короткое;
-  // жёсткие потолки: по числу кандидатов и по времени
-  if (!hits.length && word.length >= 5) {
-    const deadline = performance.now() + DIST2_BUDGET_MS
-    let examined = 0
-    let stop = false
-
-    for (const first of editsOne(word, spec.alphabet)) {
-      for (const candidate of editsOne(first, spec.alphabet)) {
-        const hit = index.map.get(candidate)
-        if (hit && hit.rank < DIST2_RANK) {
-          hits.push(hit)
-          if (hits.length >= 12) stop = true
-        }
-        if (stop) break
-        examined++
-        if (examined > DIST2_MAX_CANDIDATES) stop = true
-        else if ((examined & 2047) === 0 && performance.now() > deadline) stop = true
-      }
-      if (stop) break
-    }
+  if (!hits.length) {
+    // вторая правка — только если слово не похоже на словоформу известного
+    if (looksLikeForm(index, word)) return []
+    hits.push(...collectSecondPass(index, word, spec.alphabet))
   }
 
   if (!hits.length) return []
@@ -188,6 +199,7 @@ function suggestFor(lang, raw, limit = 4) {
   hits.sort((a, b) => a.rank - b.rank)
   const out = []
   const seen = new Set()
+
   for (const hit of hits) {
     const key = normalize(hit.display)
     if (seen.has(key) || key === word) continue
@@ -195,24 +207,11 @@ function suggestFor(lang, raw, limit = 4) {
     out.push(hit.display)
     if (out.length >= limit) break
   }
+
   return out
 }
 
-/** Похоже на словоформу известного слова (орфографи-я → орфографии)? Тогда
- *  подсказки не нужны: это не опечатка, а редкая или техническая форма. */
-function looksLikeForm(index, word) {
-  if (!index) return false
-  const longest = Math.min(2, word.length - 6)
-
-  for (let cut = 1; cut <= longest; cut++) {
-    const stem = word.slice(0, word.length - cut)
-    if (stem.length >= 6 && hasPrefix(index, stem)) return true
-  }
-
-  return false
-}
-
-/** Варианты для слова: '' когда слово не просит подсказок (из словаря, чужой алфавит). */
+/** Варианты для слова: пусто, если слово из словаря или письменность чужая. */
 function suggestionsFor(raw) {
   const word = raw.trim()
   if (word.length < 3) return []
@@ -225,9 +224,7 @@ function suggestionsFor(raw) {
     if (cache.has(key)) return cache.get(key)
 
     const index = indexFor(lang)
-    const normalized = normalize(word)
-    const known = index?.map.has(normalized)
-    const list = known || looksLikeForm(index, normalized) ? [] : suggestFor(lang, word)
+    const list = !index || index.map.has(normalize(word)) ? [] : suggestFor(lang, word)
 
     if (cache.size > CACHE_LIMIT) cache.clear()
     cache.set(key, list)
@@ -241,11 +238,11 @@ function suggestionsFor(raw) {
 
 function readSettings() {
   const stored = ctxRef?.storage?.get?.(STORE_KEY, null)
-  if (stored && Array.isArray(stored.languages)) {
-    settings = { languages: stored.languages.filter(lang => LANGUAGES[lang]) }
-  } else {
-    settings = { ...DEFAULT_SETTINGS }
-  }
+  const languages = Array.isArray(stored?.languages)
+    ? stored.languages.filter(lang => LANGUAGES[lang])
+    : DEFAULT_SETTINGS.languages
+
+  settings = { languages }
   return settings
 }
 
@@ -258,20 +255,18 @@ function writeSettings(next) {
 
 function LanguageRow({ lang, onChanged }) {
   const [on, setOn] = useState(settings.languages.includes(lang))
+
   const toggle = useCallback(() => {
     const next = new Set(settings.languages)
     if (next.has(lang)) next.delete(lang)
     else next.add(lang)
-    writeSettings({ languages: [...next] })
+
+    writeSettings({ languages: Object.keys(LANGUAGES).filter(id => next.has(id)) })
     setOn(next.has(lang))
     onChanged()
   }, [lang, onChanged])
 
-  return jsx(ToggleRow, {
-    label: LANGUAGES[lang].label,
-    checked: on,
-    onChange: toggle
-  })
+  return jsx(ToggleRow, { label: LANGUAGES[lang].label, checked: on, onChange: toggle })
 }
 
 function SettingsPage() {
@@ -280,9 +275,12 @@ function SettingsPage() {
   const redraw = useCallback(() => force(n => n + 1), [])
 
   return jsxs('div', {
-    style: { display: 'flex', flexDirection: 'column', gap: '10px', padding: '4px 0' },
+    style: { display: 'flex', flexDirection: 'column', gap: '8px', padding: '4px 0' },
     children: [
-      jsx('div', { style: { fontSize: '12px', color: 'var(--ui-text-tertiary)', lineHeight: 1.5 }, children: t('hint') }),
+      jsx('div', {
+        style: { fontSize: '12px', color: 'var(--ui-text-tertiary)', lineHeight: 1.5 },
+        children: t('hint')
+      }),
       ...Object.keys(LANGUAGES).map(lang => jsx(LanguageRow, { key: lang, lang, onChanged: redraw }))
     ]
   })
@@ -293,55 +291,55 @@ const LOCALES = {
   en: {
     header: 'Did you mean:',
     addToDict: 'Add to dictionary',
-    hint: 'Languages that get replacement suggestions in the composer’s right-click menu.',
+    hint: 'Tick the languages you write in. Suggestions appear in the composer’s right-click menu; unticked languages are not loaded at all.',
     settingsTitle: 'Spellcheck Plus'
   },
   ru: {
     header: 'Возможно, вы имели в виду:',
     addToDict: 'Добавить в словарь',
-    hint: 'Языки, для которых в меню правого клика по полю ввода показываются варианты замены.',
+    hint: 'Отметьте языки, на которых пишете. Варианты появляются в меню правого клика по полю ввода; выключенные языки вообще не загружаются.',
     settingsTitle: 'Spellcheck Plus'
   },
   zh: {
     header: '您是不是要输入：',
     addToDict: '添加到词典',
-    hint: '在输入框右键菜单中显示替换建议的检查语言。',
+    hint: '选择您使用的语言。替换建议会出现在输入框右键菜单中；未选中的语言不会被加载。',
     settingsTitle: 'Spellcheck Plus'
   },
   'zh-hant': {
     header: '您是不是要輸入：',
     addToDict: '加入字典',
-    hint: '在輸入框右鍵選單中顯示取代建議的檢查語言。',
+    hint: '選擇您使用的語言。取代建議會出現在輸入框右鍵選單中；未勾選的語言不會載入。',
     settingsTitle: 'Spellcheck Plus'
   },
   ja: {
     header: 'もしかして：',
     addToDict: '辞書に追加',
-    hint: '入力欄の右クリックメニューで候補を表示する言語。',
+    hint: '使用する言語にチェックを入れてください。入力欄の右クリックメニューに候補が表示されます。',
     settingsTitle: 'Spellcheck Plus'
   },
   ar: {
     header: 'هل تقصد:',
     addToDict: 'إضافة إلى القاموس',
-    hint: 'اللغات التي تظهر لها بدائل في قائمة زر الفأرة الأيمن داخل حقل الإدخال.',
+    hint: 'حدّد اللغات التي تكتب بها. تظهر البدائل في قائمة زر الفأرة الأيمن، واللغات غير المحددة لا تُحمَّل.',
     settingsTitle: 'Spellcheck Plus'
   },
   fr: {
     header: 'Vouliez-vous dire :',
     addToDict: 'Ajouter au dictionnaire',
-    hint: 'Langues pour lesquelles le menu contextuel du champ de saisie propose des remplacements.',
+    hint: 'Cochez les langues que vous utilisez. Les suggestions apparaissent dans le menu contextuel du champ de saisie.',
     settingsTitle: 'Spellcheck Plus'
   },
   de: {
     header: 'Meinten Sie:',
     addToDict: 'Zum Wörterbuch hinzufügen',
-    hint: 'Sprachen, für die das Kontextmenü des Eingabefelds Ersetzungen vorschlägt.',
+    hint: 'Wählen Sie Ihre Sprachen. Vorschläge erscheinen im Kontextmenü des Eingabefelds; abgewählte Sprachen werden nicht geladen.',
     settingsTitle: 'Spellcheck Plus'
   },
   es: {
     header: '¿Quisiste decir:',
     addToDict: 'Añadir al diccionario',
-    hint: 'Idiomas para los que el menú del campo de entrada sugiere alternativas.',
+    hint: 'Marca los idiomas en los que escribes. Las sugerencias aparecen en el menú del campo de entrada.',
     settingsTitle: 'Spellcheck Plus'
   }
 }
@@ -351,12 +349,11 @@ const LOCALES = {
 export default {
   id: ID,
   name: 'Spellcheck Plus',
-  description: 'Русские и английские варианты замены слова в меню правого клика по полю ввода.',
+  version: VERSION,
+  description: 'Replacement suggestions for misspelled words in the composer’s right-click menu.',
   register(ctx) {
     ctxRef = ctx
-
     ctx.i18n.register(LOCALES)
-
     readSettings()
 
     // словари распаковываются в фоне: меню не ждёт, пока это закончится
