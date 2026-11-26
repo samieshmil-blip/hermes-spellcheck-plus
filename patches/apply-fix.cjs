@@ -40,6 +40,24 @@ const LANG_V1 =
   `var want=["ru","en-US"].filter(function(l){return available.indexOf(l)>=0});` +
   `return want.length?want:[chosen];})());`
 
+// Сборки начиная с 0.23.4 вообще не задают языки словаря: блока
+// configureSpellChecker в electron-main.mjs больше нет. Тогда дописываем свой.
+const INJECT =
+  `\n// ${MARK}-injected: сборка не задаёт языки словаря — делаем это сами.\n` +
+  `;void (async () => {\n` +
+  `  try {\n` +
+  `    const { app, session } = await import('electron')\n` +
+  `    await app.whenReady()\n` +
+  `    const s = session.defaultSession\n` +
+  `    if (!s || typeof s.setSpellCheckerLanguages !== 'function') return\n` +
+  `    const available = s.availableSpellCheckerLanguages || []\n` +
+  `    const want = ${LANGS}.filter(l => available.includes(l))\n` +
+  `    if (want.length) s.setSpellCheckerLanguages(want)\n` +
+  `  } catch {\n` +
+  `    /* молча: без словаря просто не будет подчёркивания */\n` +
+  `  }\n` +
+  `})()\n`
+
 const DICT_SRC = path.join(__dirname, 'dict')
 const DICT_FILES = ['ru-RU-3-0.bdic', 'en-US-10-1.bdic']
 
@@ -80,14 +98,23 @@ function patchMain(dist) {
   if (!fs.existsSync(file)) return { ok: false, why: 'нет electron-main.mjs' }
 
   const src = fs.readFileSync(file, 'utf8')
-  if (src.includes(`/*${MARK}*/`)) return { ok: true, state: 'уже пропатчено' }
+  if (src.includes(`/*${MARK}*/`) || src.includes(`${MARK}-injected`)) {
+    return { ok: true, state: 'уже пропатчено' }
+  }
 
   let next = null
   if (src.includes(LANG_V1)) next = src.replace(LANG_V1, LANG_EXPR)
   else if (src.includes(LANG_PRISTINE)) next = src.replace(LANG_PRISTINE, LANG_EXPR)
 
   if (!next || next === src) {
-    return { ok: false, why: 'не нашёл строку установки языков словаря (сборка изменилась?)' }
+    // Новый формат сборки: своей установки языков в бандле нет вовсе.
+    if (src.includes('setSpellCheckerLanguages')) {
+      return { ok: false, why: 'не нашёл строку установки языков словаря (сборка изменилась?)' }
+    }
+
+    backup(file)
+    fs.writeFileSync(file, src + INJECT, 'utf8')
+    return { ok: true, state: 'внедрено (в сборке нет настройки языков)' }
   }
 
   backup(file)
