@@ -1,9 +1,14 @@
-# hermes-ru-spellcheck watcher.
-# Every minute it checks whether the spell-check patch is still present in the
-# built Hermes Desktop bundle; if an app update replaced the files, it runs
-# apply-fix.cjs again. Nothing is restarted: the underline comes back on the
-# next Hermes launch (an update relaunches the app anyway).
-# Logs: watch.log and apply-fix.log next to this file.
+# hermes-ru-spellcheck watcher (event driven, no polling).
+#
+# The patch has to be in place BEFORE Hermes reads its bundle, so "check only
+# when the app opens" is impossible: by then the files are already loaded and a
+# fresh patch needs one more restart. Instead this script does nothing while
+# idle and wakes up only when the app folder changes - i.e. exactly when an
+# update rewrites the bundle - then re-applies apply-fix.cjs (a few seconds),
+# so the next Hermes launch already has the underline.
+#
+# One extra check runs when the script starts (logon).
+# Logs: watch.log next to this file.
 $ErrorActionPreference = 'SilentlyContinue'
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -34,31 +39,46 @@ function Find-Node {
   return $null
 }
 
-$node = Find-Node
-if (-not $node) {
-  Write-Log 'node.exe not found, watcher exits'
-  exit 1
+function Test-Patched {
+  if (-not (Test-Path $mainFile)) { return $true }  # app not installed here: nothing to do
+  return [bool](Select-String -Path $mainFile -Pattern 'ru-spellcheck' -Quiet)
 }
 
-Write-Log "watcher started (node: $node)"
+function Invoke-Fix {
+  if (Test-Patched) { return }
+  Write-Log 'patch is missing (app update?) - applying'
+  & $node $apply | Out-Null
+  if (Test-Patched) { Write-Log 'result: patched, Hermes will pick it up on its next start' }
+  else { Write-Log 'result: FAILED, see apply-fix.log' }
+}
+
+$node = Find-Node
+if (-not $node) { Write-Log 'node.exe not found, watcher exits'; exit 1 }
+
+Write-Log "watcher started (node: $node, event driven)"
+Invoke-Fix
 
 while ($true) {
-  if (-not (Test-Path $mainFile)) {
-    Write-Log 'app bundle not found, waiting'
-  } else {
-    $patched = Select-String -Path $mainFile -Pattern 'ru-spellcheck' -Quiet
+  try {
+    $watcher = New-Object System.IO.FileSystemWatcher
+    $watcher.Path = $dist
+    $watcher.Filter = '*'
+    $watcher.IncludeSubdirectories = $true
+    $watcher.NotifyFilter = [System.IO.NotifyFilters]::LastWrite -bor [System.IO.NotifyFilters]::FileName -bor [System.IO.NotifyFilters]::DirectoryName
+    $watcher.EnableRaisingEvents = $true
 
-    if (-not $patched) {
-      Write-Log 'patch is missing (app update?) - applying'
-      & $node $apply | Out-Null
-      $again = Select-String -Path $mainFile -Pattern 'ru-spellcheck' -Quiet
-      if ($again) {
-        Write-Log 'result: patched again'
-      } else {
-        Write-Log 'result: FAILED, see apply-fix.log'
-      }
+    while ($true) {
+      $change = $watcher.WaitForChanged([System.IO.WatcherChangeTypes]::All, 3600000)
+      if ($change.TimedOut) { continue }
+
+      # an update writes many files: wait for it to settle, then check once
+      Start-Sleep -Seconds 6
+      Invoke-Fix
     }
+  } catch {
+    Write-Log ("watcher error: " + $_.Exception.Message + " - recreating")
+    Start-Sleep -Seconds 30
+  } finally {
+    if ($watcher) { $watcher.Dispose() }
   }
-
-  Start-Sleep -Seconds 60
 }
